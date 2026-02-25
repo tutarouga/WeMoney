@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Google AI Studio App</title>
+    <script>
+      // Fix for "Cannot set property fetch of #<Window> which has only a getter"
+      // This happens when polyfills (like formdata-polyfill) try to overwrite window.fetch
+      // in environments where it is defined as a read-only getter.
+      (function() {
+        try {
+          const patch = (target) => {
+            if (!target) return;
+            const descriptor = Object.getOwnPropertyDescriptor(target, 'fetch');
+            if (descriptor && !descriptor.writable) {
+              if (descriptor.configurable) {
+                Object.defineProperty(target, 'fetch', {
+                  value: target.fetch,
+                  writable: true,
+                  configurable: true
+                });
+              } else {
+                // If not configurable, we can't redefine it, but we can try to shadow it
+                // by adding it to the instance if it's on the prototype.
+                // However, for 'window', it's usually on the instance.
+                console.warn('fetch is not configurable on', target);
+              }
+            }
+          };
+          patch(typeof window !== 'undefined' ? window : null);
+          patch(typeof globalThis !== 'undefined' ? globalThis : null);
+          patch(typeof self !== 'undefined' ? self : null);
+        } catch (e) {
+          console.warn('Could not patch fetch:', e);
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
