@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { categoriasFinanceiras } from '../constants';
 import { TransactionType } from '../types';
-import { PlusCircle, Baby, Repeat } from 'lucide-react';
+import { PlusCircle, Baby, Repeat, Layers } from 'lucide-react';
+import { addMonths } from 'date-fns';
 
 interface TransactionFormProps {
   onTransactionAdded: () => void;
@@ -15,6 +16,8 @@ export function TransactionForm({ onTransactionAdded }: TransactionFormProps) {
   const [description, setDescription] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [isRecurring, setIsRecurring] = useState(false);
+  const [isInstallment, setIsInstallment] = useState(false);
+  const [installmentsCount, setInstallmentsCount] = useState('2');
   const [unitCount, setUnitCount] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -26,17 +29,45 @@ export function TransactionForm({ onTransactionAdded }: TransactionFormProps) {
 
     try {
       setLoading(true);
-      const { error } = await supabase.from('transactions').insert([
-        {
+      
+      const totalAmount = parseFloat(amount);
+      const baseDate = new Date(date);
+      // Adjust for timezone issues when parsing YYYY-MM-DD
+      baseDate.setMinutes(baseDate.getMinutes() + baseDate.getTimezoneOffset());
+
+      const transactionsToInsert = [];
+
+      if (isInstallment) {
+        const count = parseInt(installmentsCount);
+        if (isNaN(count) || count < 2) throw new Error('Número de parcelas inválido');
+        
+        const installmentAmount = totalAmount / count;
+        
+        for (let i = 0; i < count; i++) {
+          const installmentDate = addMonths(baseDate, i);
+          transactionsToInsert.push({
+            type,
+            amount: installmentAmount,
+            category,
+            description: `${description} (${i + 1}/${count})`,
+            date: installmentDate.toISOString().split('T')[0],
+            is_recurring: false, // Installments are not recurring indefinitely
+            unit_count: category === 'fraldas_higiene_thomas' && unitCount ? parseInt(unitCount) : null,
+          });
+        }
+      } else {
+        transactionsToInsert.push({
           type,
-          amount: parseFloat(amount),
+          amount: totalAmount,
           category,
           description,
           date,
           is_recurring: isRecurring,
           unit_count: category === 'fraldas_higiene_thomas' && unitCount ? parseInt(unitCount) : null,
-        } as any,
-      ]);
+        });
+      }
+
+      const { error } = await supabase.from('transactions').insert(transactionsToInsert);
 
       if (error) throw error;
 
@@ -44,6 +75,8 @@ export function TransactionForm({ onTransactionAdded }: TransactionFormProps) {
       setAmount('');
       setDescription('');
       setIsRecurring(false);
+      setIsInstallment(false);
+      setInstallmentsCount('2');
       setUnitCount('');
       onTransactionAdded();
     } catch (error) {
@@ -87,7 +120,9 @@ export function TransactionForm({ onTransactionAdded }: TransactionFormProps) {
         {/* Amount & Date */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Valor (R$)</label>
+            <label className="block text-xs font-medium text-slate-500 mb-1">
+              {isInstallment ? 'Valor Total (R$)' : 'Valor (R$)'}
+            </label>
             <input
               type="number"
               step="0.01"
@@ -158,22 +193,69 @@ export function TransactionForm({ onTransactionAdded }: TransactionFormProps) {
           />
         </div>
 
-        {/* Recurring Toggle */}
-        <label className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-100 transition-colors">
-          <div className={`p-1.5 rounded-lg ${isRecurring ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-200 text-slate-500'}`}>
-            <Repeat className="w-4 h-4" />
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-medium text-slate-900">Fixar no Mês</p>
-            <p className="text-xs text-slate-500">Repetir automaticamente</p>
-          </div>
-          <input
-            type="checkbox"
-            checked={isRecurring}
-            onChange={(e) => setIsRecurring(e.target.checked)}
-            className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
-          />
-        </label>
+        <div className="space-y-2">
+          {/* Recurring Toggle */}
+          {!isInstallment && (
+            <label className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-100 transition-colors">
+              <div className={`p-1.5 rounded-lg ${isRecurring ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-200 text-slate-500'}`}>
+                <Repeat className="w-4 h-4" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-slate-900">Fixar no Mês</p>
+                <p className="text-xs text-slate-500">Repetir automaticamente</p>
+              </div>
+              <input
+                type="checkbox"
+                checked={isRecurring}
+                onChange={(e) => setIsRecurring(e.target.checked)}
+                className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+              />
+            </label>
+          )}
+
+          {/* Installment Toggle */}
+          {!isRecurring && (
+            <div className="space-y-2">
+              <label className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-100 transition-colors">
+                <div className={`p-1.5 rounded-lg ${isInstallment ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-200 text-slate-500'}`}>
+                  <Layers className="w-4 h-4" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-slate-900">Parcelar</p>
+                  <p className="text-xs text-slate-500">Dividir em vários meses</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={isInstallment}
+                  onChange={(e) => setIsInstallment(e.target.checked)}
+                  className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                />
+              </label>
+
+              {isInstallment && (
+                <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
+                  <label className="text-sm font-medium text-indigo-900 whitespace-nowrap">
+                    Nº de Parcelas:
+                  </label>
+                  <input
+                    type="number"
+                    min="2"
+                    max="48"
+                    required
+                    value={installmentsCount}
+                    onChange={(e) => setInstallmentsCount(e.target.value)}
+                    className="w-20 px-3 py-1.5 bg-white border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                  />
+                  {amount && parseInt(installmentsCount) > 0 && (
+                    <span className="text-xs text-indigo-600 ml-auto">
+                      {installmentsCount}x de {(parseFloat(amount) / parseInt(installmentsCount)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         <button
           type="submit"
