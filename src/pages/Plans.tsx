@@ -6,10 +6,16 @@ export function Plans() {
   const currentPlan = profile?.plan_type || 'free';
 
   const handleSubscribe = (plan: string) => {
+    if (!profile?.id) {
+      alert('Usuário não identificado. Por favor, faça login novamente.');
+      return;
+    }
+
     if (plan === 'Pro') {
-      window.open('https://www.mercadopago.com.br/subscriptions/checkout?preapproval_plan_id=cee5205f07bc49d89a1a529de2847a8b', '_blank');
+      window.open(`https://www.mercadopago.com.br/subscriptions/checkout?preapproval_plan_id=cee5205f07bc49d89a1a529de2847a8b&external_reference=${profile.id}`, '_blank');
     } else if (plan === 'Vitalício') {
-      window.open('https://mpago.li/1ym7qKV', '_blank');
+      // For standard checkout links, we can append external_reference
+      window.open(`https://mpago.li/1ym7qKV?external_reference=${profile.id}`, '_blank');
     }
   };
 
