@@ -8,7 +8,9 @@ import { formatCurrency } from '../lib/utils';
 import { subDays, startOfDay } from 'date-fns';
 
 // Initialize Gemini API
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// Use VITE_GEMINI_API_KEY for Netlify deployment, fallback to process.env for AI Studio preview
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+const ai = new GoogleGenAI({ apiKey });
 
 interface Message {
   id: string;
