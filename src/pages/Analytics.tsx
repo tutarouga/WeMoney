@@ -13,7 +13,7 @@ import { ptBR } from 'date-fns/locale';
 import { formatCurrency } from '../lib/utils';
 import { Lock, BarChart3, TrendingUp, PieChart, Activity, FileText, X } from 'lucide-react';
 import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 
 type TimeFilter = '7days' | 'thisMonth' | '3months' | 'thisYear';
 
