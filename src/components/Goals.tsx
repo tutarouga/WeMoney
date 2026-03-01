@@ -1,14 +1,26 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Transaction } from '../types';
 import { formatCurrency } from '../lib/utils';
-import { Target, ShieldCheck } from 'lucide-react';
+import { Target, ShieldCheck, Edit2, Check, X, Lock } from 'lucide-react';
+import { useUserSettings } from '../contexts/useUserSettings';
+import { useAppContext } from '../contexts/AppContext';
 
 interface GoalsProps {
   allTransactions: Transaction[];
 }
 
 export function Goals({ allTransactions }: GoalsProps) {
-  const { emergencySaved, emergencyTarget, investmentSaved, investmentTarget } = useMemo(() => {
+  const { profile } = useAppContext();
+  const { settings, updateSettings } = useUserSettings();
+  const isPaidPlan = profile?.plan_type === 'pro' || profile?.plan_type === 'lifetime';
+
+  const [editingEmergency, setEditingEmergency] = useState(false);
+  const [emergencyInput, setEmergencyInput] = useState(settings.goals.emergencyTarget.toString());
+
+  const [editingInvestment, setEditingInvestment] = useState(false);
+  const [investmentInput, setInvestmentInput] = useState(settings.goals.investmentTarget.toString());
+
+  const { emergencySaved, investmentSaved } = useMemo(() => {
     const emergency = allTransactions
       .filter(t => t.category === 'reserva_emergencia')
       .reduce((acc, curr) => acc + Number(curr.amount), 0);
@@ -19,14 +31,37 @@ export function Goals({ allTransactions }: GoalsProps) {
     
     return { 
       emergencySaved: emergency, 
-      emergencyTarget: 10000,
       investmentSaved: investments,
-      investmentTarget: 5000 
     };
   }, [allTransactions]);
 
+  const emergencyTarget = settings.goals.emergencyTarget;
+  const investmentTarget = settings.goals.investmentTarget;
+
   const emergencyPercentage = Math.min((emergencySaved / emergencyTarget) * 100, 100);
   const investmentPercentage = Math.min((investmentSaved / investmentTarget) * 100, 100);
+
+  const handleSaveEmergency = () => {
+    const val = parseFloat(emergencyInput);
+    if (!isNaN(val) && val > 0) {
+      updateSettings({
+        ...settings,
+        goals: { ...settings.goals, emergencyTarget: val }
+      });
+    }
+    setEditingEmergency(false);
+  };
+
+  const handleSaveInvestment = () => {
+    const val = parseFloat(investmentInput);
+    if (!isNaN(val) && val > 0) {
+      updateSettings({
+        ...settings,
+        goals: { ...settings.goals, investmentTarget: val }
+      });
+    }
+    setEditingInvestment(false);
+  };
 
   return (
     <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
@@ -45,7 +80,40 @@ export function Goals({ allTransactions }: GoalsProps) {
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-slate-900">Fundo de Emergência</h3>
-                <p className="text-xs text-slate-500">Meta: {formatCurrency(emergencyTarget)}</p>
+                
+                {editingEmergency ? (
+                  <div className="flex items-center gap-2 mt-1">
+                    <input 
+                      type="number" 
+                      value={emergencyInput}
+                      onChange={(e) => setEmergencyInput(e.target.value)}
+                      className="w-24 px-2 py-1 text-xs border border-slate-300 rounded outline-none focus:border-teal-500"
+                    />
+                    <button onClick={handleSaveEmergency} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded">
+                      <Check className="w-3 h-3" />
+                    </button>
+                    <button onClick={() => setEditingEmergency(false)} className="p-1 text-slate-400 hover:bg-slate-100 rounded">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 mt-1">
+                    <p className="text-xs text-slate-500">Meta: {formatCurrency(emergencyTarget)}</p>
+                    {isPaidPlan ? (
+                      <button 
+                        onClick={() => { setEmergencyInput(emergencyTarget.toString()); setEditingEmergency(true); }}
+                        className="text-slate-400 hover:text-teal-600 transition-colors"
+                        title="Editar Meta"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                      </button>
+                    ) : (
+                      <span className="flex items-center gap-1 px-1 py-0.5 rounded text-[9px] font-bold bg-slate-200 text-slate-500 uppercase tracking-wider" title="Disponível no Plano Pro">
+                        <Lock className="w-2.5 h-2.5" /> Pro
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             <span className="text-sm font-bold text-teal-600">
@@ -75,7 +143,40 @@ export function Goals({ allTransactions }: GoalsProps) {
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-slate-900">Investimentos</h3>
-                <p className="text-xs text-slate-500">Meta: {formatCurrency(investmentTarget)}</p>
+                
+                {editingInvestment ? (
+                  <div className="flex items-center gap-2 mt-1">
+                    <input 
+                      type="number" 
+                      value={investmentInput}
+                      onChange={(e) => setInvestmentInput(e.target.value)}
+                      className="w-24 px-2 py-1 text-xs border border-slate-300 rounded outline-none focus:border-indigo-500"
+                    />
+                    <button onClick={handleSaveInvestment} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded">
+                      <Check className="w-3 h-3" />
+                    </button>
+                    <button onClick={() => setEditingInvestment(false)} className="p-1 text-slate-400 hover:bg-slate-100 rounded">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 mt-1">
+                    <p className="text-xs text-slate-500">Meta: {formatCurrency(investmentTarget)}</p>
+                    {isPaidPlan ? (
+                      <button 
+                        onClick={() => { setInvestmentInput(investmentTarget.toString()); setEditingInvestment(true); }}
+                        className="text-slate-400 hover:text-indigo-600 transition-colors"
+                        title="Editar Meta"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                      </button>
+                    ) : (
+                      <span className="flex items-center gap-1 px-1 py-0.5 rounded text-[9px] font-bold bg-slate-200 text-slate-500 uppercase tracking-wider" title="Disponível no Plano Pro">
+                        <Lock className="w-2.5 h-2.5" /> Pro
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             <span className="text-sm font-bold text-indigo-600">

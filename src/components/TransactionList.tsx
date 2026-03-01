@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { Transaction } from '../types';
-import { categoriasFinanceiras } from '../constants';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 import { Trash2, Repeat, Baby, ArrowUpRight, ArrowDownRight, Filter } from 'lucide-react';
+import { useAppContext } from '../contexts/AppContext';
+import { CSVImporter } from './CSVImporter';
+import { ExcelExporter } from './ExcelExporter';
 
 interface TransactionListProps {
   transactions: Transaction[];
@@ -13,6 +15,7 @@ interface TransactionListProps {
 type FilterType = 'all' | 'income' | 'expense';
 
 export function TransactionList({ transactions, onTransactionDeleted }: TransactionListProps) {
+  const { categories } = useAppContext();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterType>('all');
@@ -20,7 +23,11 @@ export function TransactionList({ transactions, onTransactionDeleted }: Transact
   const handleDelete = async (id: string) => {
     try {
       setDeletingId(id);
-      const { error } = await supabase.from('transactions').delete().eq('id', id);
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado');
+
+      const { error } = await supabase.from('transactions').delete().eq('id', id).eq('user_id', user.id);
       
       if (error) throw error;
       
@@ -42,7 +49,11 @@ export function TransactionList({ transactions, onTransactionDeleted }: Transact
   if (transactions.length === 0) {
     return (
       <div className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm text-center">
-        <p className="text-slate-500">Nenhuma transação encontrada neste mês.</p>
+        <p className="text-slate-500 mb-4">Nenhuma transação encontrada neste mês.</p>
+        <div className="flex justify-center gap-4">
+          <CSVImporter onImportSuccess={onTransactionDeleted} />
+          <ExcelExporter transactions={filteredTransactions} />
+        </div>
       </div>
     );
   }
@@ -57,31 +68,36 @@ export function TransactionList({ transactions, onTransactionDeleted }: Transact
           </span>
         </div>
 
-        <div className="flex items-center bg-slate-100 p-1 rounded-xl self-start sm:self-auto">
-          <button
-            onClick={() => setFilter('all')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-              filter === 'all' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            Todos
-          </button>
-          <button
-            onClick={() => setFilter('income')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-              filter === 'income' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            Receitas
-          </button>
-          <button
-            onClick={() => setFilter('expense')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-              filter === 'expense' ? 'bg-white text-red-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            Despesas
-          </button>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <CSVImporter onImportSuccess={onTransactionDeleted} />
+          <ExcelExporter transactions={filteredTransactions} />
+          
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl self-start sm:self-auto">
+            <button
+              onClick={() => setFilter('all')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                filter === 'all' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              Todos
+            </button>
+            <button
+              onClick={() => setFilter('income')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                filter === 'income' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              Receitas
+            </button>
+            <button
+              onClick={() => setFilter('expense')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                filter === 'expense' ? 'bg-white text-red-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              Despesas
+            </button>
+          </div>
         </div>
       </div>
       
@@ -92,7 +108,7 @@ export function TransactionList({ transactions, onTransactionDeleted }: Transact
           </div>
         ) : (
           filteredTransactions.map((t) => {
-            const category = categoriasFinanceiras.find(c => c.id === t.category);
+            const category = categories.find(c => c.id === t.category);
             const isIncome = t.type === 'income';
             const isFralda = t.category === 'fraldas_higiene_thomas' && t.unit_count;
             const unitCost = isFralda ? t.amount / t.unit_count! : null;

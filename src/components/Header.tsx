@@ -1,6 +1,7 @@
 import { format, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Flame, Wallet } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Flame } from 'lucide-react';
+import { Logo } from './Logo';
 
 interface HeaderProps {
   currentDate: Date;
@@ -16,9 +17,7 @@ export function Header({ currentDate, setCurrentDate, spendingFastStreak }: Head
     <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="bg-indigo-600 p-2 rounded-xl text-white">
-            <Wallet className="w-5 h-5" />
-          </div>
+          <Logo className="w-9 h-9 shadow-sm rounded-xl" />
           <h1 className="text-xl font-semibold text-slate-900 hidden sm:block">Nossas Finanças</h1>
         </div>
 

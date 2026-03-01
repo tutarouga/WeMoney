@@ -1,15 +1,16 @@
 import { useState, useMemo } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { Transaction } from '../types';
-import { categoriasFinanceiras } from '../constants';
 import { formatCurrency } from '../lib/utils';
 import { PieChart as PieChartIcon, Filter } from 'lucide-react';
+import { useAppContext } from '../contexts/AppContext';
 
 interface ChartsProps {
   transactions: Transaction[];
 }
 
 export function Charts({ transactions }: ChartsProps) {
+  const { categories } = useAppContext();
   const [filter, setFilter] = useState<'all' | 'fixed' | 'variable'>('all');
 
   const chartData = useMemo(() => {
@@ -17,13 +18,13 @@ export function Charts({ transactions }: ChartsProps) {
     
     const filteredExpenses = expenses.filter(t => {
       if (filter === 'all') return true;
-      const category = categoriasFinanceiras.find(c => c.id === t.category);
+      const category = categories.find(c => c.id === t.category);
       if (!category) return false;
       return filter === 'fixed' ? category.is_fixed : !category.is_fixed;
     });
 
     const grouped = filteredExpenses.reduce((acc, curr) => {
-      const category = categoriasFinanceiras.find(c => c.id === curr.category);
+      const category = categories.find(c => c.id === curr.category);
       const label = category?.label || curr.category;
       const color = category?.color || '#cbd5e1';
 
@@ -35,7 +36,7 @@ export function Charts({ transactions }: ChartsProps) {
     }, {} as Record<string, { name: string; value: number; color: string }>);
 
     return Object.values(grouped).sort((a, b) => b.value - a.value);
-  }, [transactions, filter]);
+  }, [transactions, filter, categories]);
 
   const total = chartData.reduce((sum, item) => sum + item.value, 0);
 

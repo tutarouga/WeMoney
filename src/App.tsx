@@ -1,97 +1,35 @@
-import { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { supabase } from './lib/supabase';
-import { Transaction } from './types';
-import { categoriasFinanceiras } from './constants';
-import { format, startOfMonth, endOfMonth, isBefore, isSameMonth, parseISO, differenceInDays, startOfDay } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { Header } from './components/Header';
-import { SummaryCards } from './components/SummaryCards';
-import { TransactionForm } from './components/TransactionForm';
-import { TransactionList } from './components/TransactionList';
-import { Charts } from './components/Charts';
-import { Goals } from './components/Goals';
-import { SmartWidgets } from './components/SmartWidgets';
+import { Login } from './pages/Login';
+import { UpdatePassword } from './pages/UpdatePassword';
+import Dashboard from './pages/Dashboard';
+import { Plans } from './pages/Plans';
+import { Categories } from './pages/Categories';
+import { Events } from './pages/Events';
+import { EventDetails } from './pages/EventDetails';
+import { Analytics } from './pages/Analytics';
+import { Navbar } from './components/Navbar';
+import { AppProvider } from './contexts/AppContext';
 
-export default function App() {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [currentDate, setCurrentDate] = useState(new Date());
 
   useEffect(() => {
-    fetchTransactions();
-  }, []);
-
-  async function fetchTransactions(silent = false) {
-    try {
-      if (!silent) setLoading(true);
-      const { data, error } = await supabase
-        .from('transactions')
-        .select('*')
-        .order('date', { ascending: false });
-
-      if (error) throw error;
-      setAllTransactions(data || []);
-    } catch (error) {
-      console.error('Error fetching transactions:', error);
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  }
-
-  // Lógica de Recorrência e Filtro do Mês
-  const filteredTransactions = useMemo(() => {
-    const start = startOfMonth(currentDate);
-    const end = endOfMonth(currentDate);
-
-    return allTransactions.filter((t) => {
-      const tDate = parseISO(t.date);
-      
-      // Transação do mês exato
-      if (isSameMonth(tDate, currentDate)) {
-        return true;
-      }
-      
-      // Transação recorrente de meses anteriores
-      if (t.is_recurring && isBefore(tDate, start)) {
-        return true;
-      }
-
-      return false;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setLoading(false);
     });
-  }, [allTransactions, currentDate]);
 
-  // Jejum de Gastos (Dias sem Gastos Variáveis)
-  const spendingFastStreak = useMemo(() => {
-    const today = startOfDay(new Date());
-    
-    // Filtra apenas despesas variáveis (exceto supermercado)
-    const variableExpenses = allTransactions.filter(t => {
-      if (t.type !== 'expense') return false;
-      const category = categoriasFinanceiras.find(c => c.id === t.category);
-      if (!category) return false;
-      return !category.is_fixed && t.category !== 'supermercado';
-    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
 
-    if (variableExpenses.length === 0) {
-      // Se não há despesas variáveis, a streak é desde o início ou 0
-      return 0; // Ou poderíamos calcular desde a primeira transação
-    }
-
-    const lastVariableExpenseDate = startOfDay(parseISO(variableExpenses[0].date));
-    
-    // Se a última despesa foi hoje, a streak é 0
-    if (lastVariableExpenseDate.getTime() === today.getTime()) {
-      return 0;
-    }
-
-    // Se a última despesa foi no futuro (erro de inserção), ignora
-    if (lastVariableExpenseDate.getTime() > today.getTime()) {
-      return 0;
-    }
-
-    return differenceInDays(today, lastVariableExpenseDate);
-  }, [allTransactions]);
+    return () => subscription.unsubscribe();
+  }, []);
 
   if (loading) {
     return (
@@ -101,33 +39,74 @@ export default function App() {
     );
   }
 
+  if (!session) {
+    return <Navigate to="/login" replace />;
+  }
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 md:pb-8">
-      <Header 
-        currentDate={currentDate} 
-        setCurrentDate={setCurrentDate} 
-        spendingFastStreak={spendingFastStreak} 
-      />
-      
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        <SummaryCards transactions={filteredTransactions} />
-        
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-8">
-            <Charts transactions={filteredTransactions} />
-            <TransactionList 
-              transactions={filteredTransactions} 
-              onTransactionDeleted={() => fetchTransactions(true)}
-            />
-          </div>
-          
-          <div className="space-y-8">
-            <TransactionForm onTransactionAdded={() => fetchTransactions(true)} />
-            <Goals allTransactions={allTransactions} />
-            <SmartWidgets transactions={filteredTransactions} />
-          </div>
-        </div>
-      </main>
-    </div>
+    <AppProvider>
+      <Navbar />
+      {children}
+    </AppProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/update-password" element={<UpdatePassword />} />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/plans"
+          element={
+            <ProtectedRoute>
+              <Plans />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/categories"
+          element={
+            <ProtectedRoute>
+              <Categories />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/events"
+          element={
+            <ProtectedRoute>
+              <Events />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/events/:id"
+          element={
+            <ProtectedRoute>
+              <EventDetails />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/analytics"
+          element={
+            <ProtectedRoute>
+              <Analytics />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </Router>
   );
 }
