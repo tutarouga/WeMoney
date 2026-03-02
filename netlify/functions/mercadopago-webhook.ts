@@ -27,9 +27,11 @@ export const handler: Handler = async (event) => {
 
     let externalReference = null;
     let status = null;
-    let planType = 'pro'; // Default to pro
+    let planType = 'pro';
+    let monthsToAdd = 0;
 
-    // Fetch payment/subscription details from Mercado Pago
+    // Fetch payment details from Mercado Pago
+    // We only care about one-time payments now
     if (eventType === 'payment') {
       const response = await fetch(`https://api.mercadopago.com/v1/payments/${eventId}`, {
         headers: {
@@ -41,39 +43,28 @@ export const handler: Handler = async (event) => {
       externalReference = paymentData.external_reference;
       status = paymentData.status;
       
-      // Determine plan type based on transaction amount or description
-      // Assuming lifetime is around R$ 699,00
-      if (paymentData.transaction_amount >= 600 || 
-          paymentData.description?.toLowerCase().includes('vitalício') || 
-          paymentData.description?.toLowerCase().includes('lifetime')) {
+      const amount = paymentData.transaction_amount;
+      const description = (paymentData.description || '').toLowerCase();
+      
+      // Determine plan type and duration based on transaction amount or description
+      if (amount >= 600 || description.includes('vitalício') || description.includes('lifetime')) {
         planType = 'lifetime';
+      } else if (amount >= 90 || description.includes('1 ano') || description.includes('12 meses')) {
+        monthsToAdd = 12;
+      } else if (amount >= 45 || description.includes('6 meses')) {
+        monthsToAdd = 6;
+      } else if (amount >= 25 || description.includes('3 meses')) {
+        monthsToAdd = 3;
       } else {
-        planType = 'pro';
-      }
-    } else if (eventType === 'subscription_preapproval' || eventType === 'subscription') {
-      const response = await fetch(`https://api.mercadopago.com/preapproval/${eventId}`, {
-        headers: {
-          'Authorization': `Bearer ${mpAccessToken}`
-        }
-      });
-      const subData = await response.json();
-      
-      externalReference = subData.external_reference;
-      status = subData.status;
-      
-      // Subscriptions are usually 'pro', but check reason just in case
-      if (subData.reason?.toLowerCase().includes('vitalício') || 
-          subData.reason?.toLowerCase().includes('lifetime')) {
-         planType = 'lifetime';
-      } else {
-         planType = 'pro';
+        // Default to 1 month for smaller amounts
+        monthsToAdd = 1;
       }
     } else {
-      // Ignore other events, but return 200 to acknowledge receipt
+      // Ignore subscriptions or other events
       return { statusCode: 200, body: JSON.stringify({ message: 'Event ignored' }) };
     }
 
-    console.log(`Payment status: ${status}, external_reference: ${externalReference}, planType: ${planType}`);
+    console.log(`Payment status: ${status}, external_reference: ${externalReference}, planType: ${planType}, monthsToAdd: ${monthsToAdd}`);
 
     if (status === 'approved' || status === 'authorized') {
       if (!externalReference) {
@@ -91,18 +82,54 @@ export const handler: Handler = async (event) => {
       // Initialize Supabase client with SERVICE_ROLE key to bypass RLS
       const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-      // Update the user's profile
-      const { error } = await supabaseAdmin
+      // Fetch current profile to calculate new expiration date
+      const { data: currentProfile, error: fetchError } = await supabaseAdmin
         .from('profiles')
-        .update({ plan_type: planType })
-        .eq('id', externalReference);
+        .select('premium_expires_at, plan_type')
+        .eq('id', externalReference)
+        .single();
 
-      if (error) {
-        console.error('Error updating profile:', error);
-        throw error;
+      if (fetchError) {
+        console.error('Error fetching profile:', fetchError);
+        throw fetchError;
       }
 
-      console.log(`Successfully updated user ${externalReference} to plan ${planType}`);
+      let newExpiresAt = null;
+
+      if (planType === 'pro' && monthsToAdd > 0) {
+        const now = new Date();
+        let baseDate = now;
+
+        // If user already has an active premium expiration in the future, add to it
+        if (currentProfile?.premium_expires_at) {
+          const currentExpires = new Date(currentProfile.premium_expires_at);
+          if (currentExpires > now) {
+            baseDate = currentExpires;
+          }
+        }
+
+        // Add the purchased months
+        baseDate.setMonth(baseDate.getMonth() + monthsToAdd);
+        newExpiresAt = baseDate.toISOString();
+      }
+
+      // Update the user's profile
+      const updateData: any = { plan_type: planType };
+      if (newExpiresAt) {
+        updateData.premium_expires_at = newExpiresAt;
+      }
+
+      const { error: updateError } = await supabaseAdmin
+        .from('profiles')
+        .update(updateData)
+        .eq('id', externalReference);
+
+      if (updateError) {
+        console.error('Error updating profile:', updateError);
+        throw updateError;
+      }
+
+      console.log(`Successfully updated user ${externalReference} to plan ${planType}, expires at: ${newExpiresAt}`);
     }
 
     return {

@@ -27,6 +27,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       .single();
     
     if (profileData) {
+      // Check if premium has expired
+      if (profileData.plan_type === 'pro') {
+        const now = new Date();
+        const expiresAt = profileData.premium_expires_at ? new Date(profileData.premium_expires_at) : null;
+        
+        if (!expiresAt || now > expiresAt) {
+          // Temporarily treat as free in the app context
+          profileData.plan_type = 'free';
+        }
+      }
       setProfile(profileData);
     }
 

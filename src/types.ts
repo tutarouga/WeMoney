@@ -18,6 +18,8 @@ export interface Profile {
   id: string;
   plan_type: 'free' | 'pro' | 'lifetime';
   created_at?: string;
+  premium_expires_at?: string | null;
+  trial_used?: boolean | null;
 }
 
 export interface Category {
@@ -111,16 +113,22 @@ export type Database = {
           id: string;
           plan_type: 'free' | 'pro' | 'lifetime';
           created_at: string;
+          premium_expires_at: string | null;
+          trial_used: boolean | null;
         };
         Insert: {
           id: string;
           plan_type?: 'free' | 'pro' | 'lifetime';
           created_at?: string;
+          premium_expires_at?: string | null;
+          trial_used?: boolean | null;
         };
         Update: {
           id?: string;
           plan_type?: 'free' | 'pro' | 'lifetime';
           created_at?: string;
+          premium_expires_at?: string | null;
+          trial_used?: boolean | null;
         };
       };
     };

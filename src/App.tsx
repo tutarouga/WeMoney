@@ -9,6 +9,7 @@ import { Categories } from './pages/Categories';
 import { Events } from './pages/Events';
 import { EventDetails } from './pages/EventDetails';
 import { Analytics } from './pages/Analytics';
+import { Support } from './pages/Support';
 import { Navbar } from './components/Navbar';
 import { AppProvider } from './contexts/AppContext';
 
@@ -102,6 +103,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Analytics />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/support"
+          element={
+            <ProtectedRoute>
+              <Support />
             </ProtectedRoute>
           }
         />

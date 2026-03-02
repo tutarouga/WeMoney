@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { LayoutDashboard, CreditCard, LogOut, Tags, Crown, Calendar, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, CreditCard, LogOut, Tags, Crown, Calendar, BarChart3, HelpCircle } from 'lucide-react';
 import { useAppContext } from '../contexts/AppContext';
 import { Logo } from './Logo';
 
@@ -21,6 +21,10 @@ export function Navbar() {
     { path: '/events', label: 'Meus Eventos', icon: Calendar },
     { path: '/plans', label: 'Meu Plano', icon: CreditCard },
   ];
+
+  if (profile?.plan_type === 'lifetime') {
+    navItems.push({ path: '/support', label: 'Suporte', icon: HelpCircle });
+  }
 
   const getPlanBadge = () => {
     if (!profile) return null;
